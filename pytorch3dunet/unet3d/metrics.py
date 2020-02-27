@@ -471,7 +471,12 @@ class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
 
         spatial_dims = (1, 2) if result.ndim == 2 else (1, 2, 3)
 
-        for label, size in np.unique(target, return_counts=True):
+        labels, counts = np.unique(target, return_counts=True)
+        for label, size in zip(labels, counts):
+            # skip 0-label
+            if label == 0:
+                continue
+
             # get the mask for this instance
             instance_mask = (target == label)
 

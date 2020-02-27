@@ -527,7 +527,7 @@ class ContrastiveLoss(nn.Module):
             # SPATIAL = D X H X W in 3d case, H X W in 2d case
             # expand each label as a one-hot vector: SPATIAL -> C x SPATIAL
             # `expand_as_one_hot` requires batch dimension; later so we need to squeeze the result
-            single_target = expand_as_one_hot(single_target, C).squeeze(0)
+            single_target = expand_as_one_hot(single_target.unsqueeze(0), C).squeeze(0)
 
             # compare shapes of input and output; single_input is ExSPATIAL, single_target is CxSPATIAL
             assert single_input.dim() in (3, 4)

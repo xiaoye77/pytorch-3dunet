@@ -344,7 +344,7 @@ def expand_as_one_hot(input, C, ignore_index=None):
     Returns:
         4D/5D output torch.Tensor (NxCxSPATIAL)
     """
-    assert input.dim() in (3, 4)
+    assert input.dim() == 4
 
     # expand the input tensor to Nx1xSPATIAL before scattering
     input = input.unsqueeze(1)

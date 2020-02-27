@@ -334,11 +334,12 @@ class GenericAveragePrecision:
             os.makedirs(plots_dir)
 
     def __call__(self, input, target):
-        if self.use_last_target:
-            target = target[:, -1, ...]  # 4D
-        else:
-            # use 1st target channel
-            target = target[:, 0, ...]  # 4D
+        if target.dim() == 5:
+            if self.use_last_target:
+                target = target[:, -1, ...]  # 4D
+            else:
+                # use 1st target channel
+                target = target[:, 0, ...]  # 4D
 
         input1 = input2 = input
         multi_head = isinstance(input, tuple)
@@ -348,6 +349,7 @@ class GenericAveragePrecision:
         input1, input2, target = convert_to_numpy(input1, input2, target)
 
         batch_aps = []
+        i_batch = 0
         # iterate over the batch
         for inp1, inp2, tar in zip(input1, input2, target):
             if multi_head:
@@ -370,9 +372,10 @@ class GenericAveragePrecision:
             # compute average precision per channel
             segs_aps = [self.metric(self._filter_instances(seg), tar) for seg in segs]
 
-            logger.info(f'Max Average Precision for channel: {np.argmax(segs_aps)}')
+            logger.info(f'Batch: {i_batch}. Max Average Precision for channel: {np.argmax(segs_aps)}')
             # save max AP
             batch_aps.append(np.max(segs_aps))
+            i_batch += 1
 
         return torch.tensor(batch_aps).mean()
 

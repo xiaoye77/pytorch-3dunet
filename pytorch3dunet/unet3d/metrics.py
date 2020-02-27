@@ -355,7 +355,7 @@ class GenericAveragePrecision:
             else:
                 inp = inp1
 
-            segs = self.input_to_seg(inp)  # expects 4D
+            segs = self.input_to_seg(inp, tar)  # expects 4D
             assert segs.ndim == 4
             # convert target to seg
             tar = self.target_to_seg(tar)
@@ -388,16 +388,17 @@ class GenericAveragePrecision:
                     input[input == label] = 0
         return input
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         raise NotImplementedError
 
     def target_to_seg(self, target):
         return target
 
 
-class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
+class Embeddings2HGenericAveragePrecision(GenericAveragePrecision):
     """
     Get the instance segmentation given the foreground mask and pixel embeddings and computes the AP based on the ground truth.
+    Works with the EmbeddingUNet which has two heads: segmentation and embedding.
     The following algorithm is used to get the instance segmentation
         while fg_mask not empty:
             1. get the pixel with highest object score
@@ -415,7 +416,7 @@ class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
         self.epsilon = epsilon
         self.max_instance_num = max_instance_num
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         seg_pmaps, embeddings = input
 
         # create instance mask
@@ -448,6 +449,45 @@ class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
         return np.expand_dims(result, 0)
 
 
+class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
+    """
+    Computes the AP based on pixel embeddings the ground truth instance segmentation.
+    The following algorithm is used to get the instance segmentation
+        for i in ground_truth_instances:
+            1. get average embedding in instance i
+            2. get the object mask by growing the epsilon ball around the pixel's embedding
+            3. add the object to the list of instances
+    """
+
+    def __init__(self, epsilon, min_instance_size=None, metric='ap', save_plots=False, plots_dir='.', **kwargs):
+        super().__init__(min_instance_size, use_last_target=False, metric=metric, save_plots=save_plots,
+                         plots_dir=plots_dir, **kwargs)
+        self.epsilon = epsilon
+
+    def input_to_seg(self, embeddings, target=None):
+        assert target is not None
+
+        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
+
+        spatial_dims = (1, 2) if result.ndim == 2 else (1, 2, 3)
+
+        for label, size in np.unique(target, return_counts=True):
+            # get the mask for this instance
+            instance_mask = (target == label)
+
+            # mask out all embeddings not in this instance
+            embeddings_per_instance = embeddings * instance_mask
+
+            # compute the cluster mean
+            mean_embedding = np.sum(embeddings_per_instance, axis=spatial_dims, keepdims=True) / size
+            # compute the instance mask, i.e. get the epsilon-ball
+            inst_mask = LA.norm(embeddings - mean_embedding, axis=0) < self.epsilon
+            # save instance
+            result[inst_mask] = label
+
+        return np.expand_dims(result, 0)
+
+
 class BlobsAveragePrecision(GenericAveragePrecision):
     """
     Computes Average Precision given foreground prediction and ground truth instance segmentation.
@@ -461,7 +501,7 @@ class BlobsAveragePrecision(GenericAveragePrecision):
         self.thresholds = thresholds
         self.input_channel = input_channel
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         input = input[self.input_channel]
         segs = []
         for th in self.thresholds:
@@ -485,7 +525,7 @@ class BlobsBoundaryAveragePrecision(GenericAveragePrecision):
         assert isinstance(thresholds, list)
         self.thresholds = thresholds
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         # input = P_mask - P_boundary
         input = input[0] - input[1]
         segs = []
@@ -510,7 +550,7 @@ class BoundaryAveragePrecision(GenericAveragePrecision):
         self.thresholds = thresholds
         self.input_channel = input_channel
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         input = input[self.input_channel]
         segs = []
         for th in self.thresholds:

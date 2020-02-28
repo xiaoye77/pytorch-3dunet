@@ -450,6 +450,9 @@ class ContrastiveLoss(nn.Module):
             dist_to_mean = dist_to_mean * dist_mask
             # decrease number of instances
             C -= 1
+            # if there is only 0-label in the target return 0
+            if C == 0:
+                return 0.
 
         # zero out distances less than delta_var (hinge)
         hinge_dist = torch.clamp(dist_to_mean - self.delta_var, min=0) ** 2

@@ -12,7 +12,7 @@ from sklearn.cluster import MeanShift
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
 from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
-from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, plot_segm, convert_to_numpy
+from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, plot_segm, convert_to_numpy, plot_emb
 
 logger = get_logger('EvalMetric')
 
@@ -364,7 +364,7 @@ class GenericAveragePrecision:
 
             if self.save_plots:
                 # save predicted and ground truth segmentation
-                plot_segm(segs, tar, self.plots_dir)
+                self._plot(inp, segs, tar)
 
             # filter small instances if necessary
             tar = self._filter_instances(tar)
@@ -378,6 +378,9 @@ class GenericAveragePrecision:
             i_batch += 1
 
         return torch.tensor(batch_aps).mean()
+
+    def _plot(self, inp, segs, tar):
+        plot_segm(segs, tar, self.plots_dir)
 
     def _filter_instances(self, input):
         """
@@ -494,6 +497,9 @@ class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
             result[inst_mask] = label
 
         return np.expand_dims(result, 0)
+
+    def _plot(self, inp, segs, tar):
+        plot_emb(inp, segs[0], tar, self.plots_dir)
 
 
 class BlobsAveragePrecision(GenericAveragePrecision):
